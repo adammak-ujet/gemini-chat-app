@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Embeddable Gemini Chat</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Marked.js for rendering Markdown responses from the API -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar for a cleaner look */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1f2937; /* bg-gray-800 */
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #4b5563; /* bg-gray-600 */
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #6b7280; /* bg-gray-500 */
+        }
+        /* Styles for Markdown-rendered content */
+        .prose h1, .prose h2, .prose h3 { margin-top: 1em; margin-bottom: 0.5em; font-weight: 600; }
+        .prose p { margin-bottom: 1em; }
+        .prose ul, .prose ol { margin-left: 1.5em; margin-bottom: 1em; }
+        .prose li { margin-bottom: 0.25em; }
+        .prose pre { background-color: #1f2937; color: #d1d5db; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
+        .prose code { background-color: #374151; color: #f3f4f6; padding: 0.2em 0.4em; margin: 0; border-radius: 0.25rem; }
+        .prose pre code { padding: 0; background-color: transparent; }
+        .prose blockquote { border-left: 4px solid #4b5563; padding-left: 1em; color: #9ca3af; }
+        .prose a { color: #60a5fa; text-decoration: underline; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white antialiased">
+
+    <div id="chat-container" class="flex flex-col h-screen max-w-3xl mx-auto p-2 sm:p-4">
+        <!-- Header -->
+        <header class="bg-gray-800 rounded-t-lg p-4 shadow-lg border-b border-gray-700">
+            <h1 class="text-xl font-bold text-center text-gray-100">Gemini Assistant</h1>
+            <p class="text-sm text-center text-gray-400">Your personal AI assistant</p>
+        </header>
+
+        <!-- Message Area -->
+        <div id="message-area" class="flex-1 overflow-y-auto p-4 bg-gray-800 custom-scrollbar space-y-4">
+            <!-- Example Bot Message -->
+            <div class="flex items-start gap-3">
+                <div class="bg-indigo-500 p-2 rounded-full flex-shrink-0">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                </div>
+                <div class="bg-gray-700 rounded-lg p-3 max-w-md">
+                    <p class="text-sm">Hello! I'm Gemini. You can ask me to write, summarize, reformat text, and much more. How can I help you today?</p>
+                </div>
+            </div>
+            <!-- Messages will be appended here -->
+        </div>
+
+        <!-- Input Area -->
+        <footer class="bg-gray-800 rounded-b-lg p-4 shadow-lg border-t border-gray-700">
+            <form id="chat-form" class="flex items-center gap-3">
+                <input type="text" id="user-input" placeholder="Ask me to write, summarize, or brainstorm..." class="flex-1 bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-300" autocomplete="off">
+                <button type="submit" id="send-button" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300 flex items-center">
+                    <span id="send-text">Send</span>
+                    <svg id="send-icon" class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                    <!-- Loading Spinner -->
+                    <svg id="loading-spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </button>
+            </form>
+        </footer>
+    </div>
+
+    <script>
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+        const messageArea = document.getElementById('message-area');
+        const sendButton = document.getElementById('send-button');
+        const sendText = document.getElementById('send-text');
+        const sendIcon = document.getElementById('send-icon');
+        const loadingSpinner = document.getElementById('loading-spinner');
+
+        let chatHistory = [];
+        const systemPrompt = "You are Gemini, a helpful and creative AI assistant. You can help users with a variety of tasks like writing, summarizing, reformatting text, brainstorming ideas, and answering questions.";
+        
+        // --- Core API Interaction ---
+        
+        const callGeminiApi = async (prompt, retries = 3, delay = 1000) => {
+            // The API call now points to our own backend on Cloud Run.
+            const apiUrl = `/api/chat`; 
+            
+            // Add the new user prompt to the history for this call
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+            
+            // The payload now only contains the history, no system prompt needed here.
+            const payload = {
+                contents: chatHistory,
+            };
+
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorBody = await response.json();
+                        throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorBody.error?.message || 'Unknown error'}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    // The backend now passes through the Gemini response directly.
+                    const botResponseText = result.text;
+                    if (botResponseText) {
+                        // Add model's response to history
+                        chatHistory.push({ role: "model", parts: [{ text: botResponseText }] });
+                        return { text: botResponseText };
+                    } else {
+                        // If there's no valid text, remove the last user prompt from history
+                        chatHistory.pop();
+                        throw new Error("Invalid API response structure or empty content from backend.");
+                    }
+                } catch (error) {
+                    console.error(`Attempt ${i + 1} failed:`, error.message);
+                    if (i === retries - 1) {
+                         chatHistory.pop(); // Clean up history on final failure
+                         return { text: "I'm sorry, I encountered an error and couldn't process your request. Please try again later." };
+                    }
+                    await new Promise(res => setTimeout(res, delay * Math.pow(2, i))); // Exponential backoff
+                }
+            }
+        };
+
+        // --- UI Management ---
+
+        const toggleLoadingState = (isLoading) => {
+            if (isLoading) {
+                userInput.disabled = true;
+                sendButton.disabled = true;
+                sendText.classList.add('hidden');
+                sendIcon.classList.add('hidden');
+                loadingSpinner.classList.remove('hidden');
+            } else {
+                userInput.disabled = false;
+                sendButton.disabled = false;
+                sendText.classList.remove('hidden');
+                sendIcon.classList.remove('hidden');
+                loadingSpinner.classList.add('hidden');
+                userInput.focus();
+            }
+        };
+        
+        const appendMessage = (sender, message) => {
+            let messageDiv;
+            // Use marked.parse to render Markdown content
+            const renderedMessage = marked.parse(message);
+
+            if (sender === 'user') {
+                messageDiv = `
+                    <div class="flex justify-end items-start gap-3">
+                        <div class="bg-indigo-500 rounded-lg p-3 max-w-md">
+                            <p class="text-sm">${message}</p>
+                        </div>
+                    </div>
+                `;
+            } else { // 'bot'
+                messageDiv = `
+                    <div class="flex items-start gap-3">
+                        <div class="bg-indigo-500 p-2 rounded-full flex-shrink-0">
+                             <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                        </div>
+                        <div class="bg-gray-700 rounded-lg p-3 max-w-md">
+                            <div class="prose prose-sm text-gray-200">${renderedMessage}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            messageArea.insertAdjacentHTML('beforeend', messageDiv);
+            messageArea.scrollTop = messageArea.scrollHeight; // Auto-scroll to bottom
+        };
+
+        // --- Event Listeners ---
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const prompt = userInput.value.trim();
+            if (!prompt) return;
+
+            appendMessage('user', prompt);
+            userInput.value = '';
+            toggleLoadingState(true);
+
+            const { text } = await callGeminiApi(prompt);
+            
+            appendMessage('bot', text);
+            toggleLoadingState(false);
+        });
+
+    </script>
+</body>
+</html>
+
+
