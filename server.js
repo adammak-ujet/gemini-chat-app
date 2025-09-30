@@ -65,6 +65,11 @@ app.post('/api/chat', async (req, res) => {
     }
 });
 
+// --- Health Check Route for Cloud Run ---
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
+
 // --- Serve the HTML file for the root URL ---
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'gemini_chat.html'));
@@ -74,3 +79,4 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
 });
+
