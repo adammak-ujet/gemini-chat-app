@@ -24,7 +24,7 @@ app.post('/api/chat', async (req, res) => {
         return res.status(400).json({ error: { message: 'Request body must contain "contents" array.' } });
     }
     
-    const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+    const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
     const systemPrompt = "You are Gemini, a helpful and creative AI assistant. You can help users with a variety of tasks like writing, summarizing, reformatting text, brainstorming ideas, and answering questions.";
 
     const payload = {
