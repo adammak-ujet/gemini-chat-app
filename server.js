@@ -12,7 +12,7 @@ const ALLOWED_DOMAIN = process.env.ALLOWED_DOMAIN || 'https://agent-assist.cloud
 app.use((req, res, next) => {
     res.setHeader(
         "Content-Security-Policy", 
-        `frame-ancestors 'self' ${ALLOWED_DOMAIN}`
+        "frame-ancestors 'self' https://*.ujetdemo.co https://ujetdemo.co https://agent-assist.cloud.google.com https://*.ccaiplatform.com"
     );
     next();
 });
