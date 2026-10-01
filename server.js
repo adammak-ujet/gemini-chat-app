@@ -5,10 +5,35 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// Configuration: CCaaS parent domain allowed to embed this widget
+const ALLOWED_DOMAIN = process.env.ALLOWED_DOMAIN || 'https://agent-assist.cloud.google.com';
+
+// Security Headers: Ensure widget can only be embedded inside your CCaaS domain
+app.use((req, res, next) => {
+    res.setHeader(
+        "Content-Security-Policy", 
+        `frame-ancestors 'self' ${ALLOWED_DOMAIN}`
+    );
+    next();
+});
+
 // Middleware
 app.use(cors()); // Enable Cross-Origin Resource Sharing
 app.use(express.json()); // Parse JSON bodies
-app.use(express.static(__dirname)); // Serve the static gemini_chat.html file
+app.use(express.static(__dirname)); // Serve static files
+
+// Helper function for exponential backoff to handle 429 rate limit errors
+const fetchWithBackoff = async (url, options, maxRetries = 5) => {
+    const delays = [1000, 2000, 4000, 8000, 16000];
+    for (let i = 0; i < maxRetries; i++) {
+        const response = await fetch(url, options);
+        if (response.ok || (response.status !== 429 && response.status < 500)) {
+            return response;
+        }
+        if (i === maxRetries - 1) return response;
+        await new Promise(resolve => setTimeout(resolve, delays[i]));
+    }
+};
 
 // --- Gemini API Proxy Route ---
 app.post('/api/chat', async (req, res) => {
@@ -24,7 +49,8 @@ app.post('/api/chat', async (req, res) => {
         return res.status(400).json({ error: { message: 'Request body must contain "contents" array.' } });
     }
     
-    const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+    // Model updated to gemini-3.8-flash as required by the API
+    const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${geminiApiKey}`;
     const systemPrompt = "You are Gemini, a helpful and creative AI assistant. You can help users with a variety of tasks like writing, summarizing, reformatting text, brainstorming ideas, and answering questions.";
 
     const payload = {
@@ -35,7 +61,7 @@ app.post('/api/chat', async (req, res) => {
     };
 
     try {
-        const geminiResponse = await fetch(geminiApiUrl, {
+        const geminiResponse = await fetchWithBackoff(geminiApiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -44,7 +70,6 @@ app.post('/api/chat', async (req, res) => {
         if (!geminiResponse.ok) {
             const errorBody = await geminiResponse.json();
             console.error('Gemini API Error:', errorBody);
-            // Pass the detailed error from Gemini back to the frontend if possible
             return res.status(geminiResponse.status).json({ 
                 error: { message: errorBody.error?.message || 'An error occurred with the Gemini API.' }
             });
@@ -75,8 +100,6 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'gemini_chat.html'));
 });
 
-
 app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
 });
-
